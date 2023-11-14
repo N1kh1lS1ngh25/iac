@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "AWS Cloudformation template to deploy RDS "
+Parameters:
+  DBName:
+    Default: MyDatabase
+    Description: The database name
+    Type: String
+    MinLength: "1"
+    MaxLength: "64"
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription:
+      must begin with a letter and contain only alphanumeric
+      characters.
+
+  DBUser:
+    NoEcho: "true"
+    Description: The database admin account username
+    Type: String
+    MinLength: "1"
+    MaxLength: "16"
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription:
+      must begin with a letter and contain only alphanumeric
+      characters.
+
+  DBPassword:
+    NoEcho: "true"
+    Description: The database admin account password
+    Type: String
+    MinLength: "1"
+    MaxLength: "41"
+    AllowedPattern: "[a-zA-Z0-9]+"
+    ConstraintDescription: must contain only alphanumeric characters.
+
+  DBAllocatedStorage:
+    Default: "50"
+    Description: The size of the database (Gb)
+    Type: Number
+    MinValue: "50"
+    MaxValue: "1024"
+    ConstraintDescription: must be between 50 and 1024Gb.
+
+  DBInstanceClass:
+    Description: The database instance type
+    Type: String
+    Default: db.t3.micro
+    AllowedValues:
+      [
+        db.t3.micro,
+        db.m5.large,
+        db.m5.xlarge,
+        db.m5.2xlarge,
+        db.t3.large,
+        db.t3.xlarge,
+        db.t3.2xlarge,
+      ]
+    ConstraintDescription: must select a valid database instance type.
+
+  EC2SecurityGroup:
+    Description:
+      The EC2 security group that contains instances that need access to
+      the database
+    Default: default
+    Type: String
+    AllowedPattern: '[a-zA-Z0-9\-]+'
+    ConstraintDescription: must be a valid security group name.
+
+  MultiAZ:
+    Description: Multi-AZ master database
+    Type: String
+    Default: "false"
+    AllowedValues: ["false"]
+    ConstraintDescription: must be true or false.
+
+  DBSubnetGroupName:
+    Type: String
+    Default: "readywire-public-subnet-grp"
+  PubliclyAccessible:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+  VpcId:
+    Type: String
+    Default: vpc-0df663d04839872b6
+
+Resources:
+  DBEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open database for access
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: "3306"
+          ToPort: "3306"
+  MasterDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: !Ref "DBName"
+      AllocatedStorage: !Ref "DBAllocatedStorage"
+      DBInstanceClass: !Ref "DBInstanceClass"
+      Engine: MySQL
+      MasterUsername: !Ref "DBUser"
+      MasterUserPassword: !Ref "DBPassword"
+      MultiAZ: !Ref "MultiAZ"
+      DBParameterGroupName: readywireparameter
+      Tags:
+        - Key: Name
+          Value: Master Database
+      VPCSecurityGroups: [!GetAtt DBEC2SecurityGroup.GroupId]
+      DBSubnetGroupName: !Ref DBSubnetGroupName
+      PubliclyAccessible: !Ref PubliclyAccessible
+      StorageType: gp3
+      StorageEncrypted: "true"
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+Outputs:
+  MasterJDBCConnectionString:
+    Description: JDBC connection string for the master database
+    Value:
+      !Join [
+        "",
+        [
+          "jdbc:mysql://",
+          !GetAtt [MasterDB, Endpoint.Address],
+          ":",
+          !GetAtt [MasterDB, Endpoint.Port],
+          /,
+          !Ref "DBName",
+        ],
+      ]

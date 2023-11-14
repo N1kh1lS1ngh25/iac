@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This CloudFormation template Creates an private-S3 bucket and IAM user granting access to the S3 bucket
+
+Resources:
+
+#! Creating private s3 bukcet with 3 days Lifecycle configuration
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketName: rws3bucket-ttyl
+      LifecycleConfiguration:
+        Rules:
+          - Id: Object Deletion policy
+            ExpirationInDays: 3
+            Status: Enabled
+
+#! Creating an IAM user and adding it to the user group created
+  MyIamUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: rwIamUser
+      Groups: 
+          - !Sub '${rwUserGroup}'
+    DependsOn: rwUserGroup
+
+#! Creating user Group 
+  rwUserGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: rwUserGroup
+
+#! creating IAM policy and adding to the user group created
+  IAMPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: MyUserPolicy
+      Groups: 
+        - !Ref rwUserGroup
+      PolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Sid : VisualEditor0
+            Effect: Allow
+            Action : "s3:*"
+            Resource:
+              - !Sub "arn:aws:s3:::rws3bucket-ttyl/*"
+              - !Sub "arn:aws:s3:::rws3bucket-ttyl"
+          - Sid: VisualEditor01
+            Effect: Allow
+            Action:
+              # - s3:ListStorageLensConfigurations
+              # - s3:ListAccessPointsForObjectLambda
+              - s3:GetAccessPoint
+              - s3:ListAllMyBuckets
+              - s3:PutAccountPublicAccessBlock
+              - s3:GetAccountPublicAccessBlock
+              - s3:ListAccessPoints
+              - s3:PutAccessPointPublicAccessBlock
+              - s3:ListJobs
+              - s3:PutStorageLensConfiguration
+              - s3:ListMultiRegionAccessPoints
+              - s3:CreateJob
+            Resource: "*"
+            
+#! Creating access key and SecretAccess Key for the user
+  UserAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      Status: Active 
+      UserName: !Ref MyIamUser
+
+#! Output secret AccessKey-Id and SecretAccessKey-ID
+Outputs:
+  AccessKeyID:
+    Description: AccessKey-Id 
+    Value: !Ref UserAccessKey
+    
+  SecretAccessKeyID:
+    Description: SecretAccessKey-ID
+    Value: !GetAtt UserAccessKey.SecretAccessKey
+    
+    
